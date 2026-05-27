@@ -884,7 +884,6 @@
 <script>
   // ── CONFIG ──
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRvKnUIlN_g3Gn7rzHQ_OZuUS0UCv7FnntGAN5r9Py1fmybBfikPCoIyt75EA2tilUnROA8k35PsrRj/pub?gid=0&single=true&output=csv';
-  const PROXY   = 'https://api.allorigins.win/raw?url=';
   const WA_NUMBER = '51981571118';
 
   // ── CATEGORY ICONS ──
@@ -1032,8 +1031,22 @@
 
   async function loadWorkers() {
     try {
-      const res  = await fetch(PROXY + encodeURIComponent(CSV_URL));
-      const text = await res.text();
+      // Try multiple proxies in sequence until one works
+      const proxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://corsproxy.io/?',
+        'https://proxy.cors.sh/',
+        'https://crossorigin.me/'
+      ];
+
+      let text = null;
+      for (const proxy of proxies) {
+        try {
+          const res = await fetch(proxy + encodeURIComponent(CSV_URL));
+          if (res.ok) { text = await res.text(); break; }
+        } catch(e) { continue; }
+      }
+      if (!text) throw new Error('All proxies failed');
       const rows = parseCSV(text);
 
       const workers = rows.filter(row => {
