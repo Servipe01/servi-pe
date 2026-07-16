@@ -883,7 +883,8 @@
 
 <script>
   // ── CONFIG ──
-  const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRvKnUIlN_g3Gn7rzHQ_OZuUS0UCv7FnntGAN5r9Py1fmybBfikPCoIyt75EA2tilUnROA8k35PsrRj/pub?gid=0&single=true&output=csv';
+  // Your Google Sheet ID (from the URL: /spreadsheets/d/SHEET_ID/edit)
+  const SHEET_ID = '1U63yLHUW88m0SeN1QmTNI7HjTP8NTAz22hdAb-R-HdQ';
   const WA_NUMBER = '51981571118';
 
   // ── CATEGORY ICONS ──
@@ -942,7 +943,7 @@
     const rating = parseFloat(w.rating) || 0;
     const reviews = parseInt(w.reviews) || 0;
     const precio = parseInt(w.precio) || 0;
-    const verificado = w.verificado === 'TRUE';
+    const verificado = w.verificado.toLowerCase() === 'true';
     const turnoKey = (w.turno || '').toLowerCase().replace(/ /g,'');
     const diasKey  = (w.diasDisponibles || '').toLowerCase().replace(/ /g,'');
 
@@ -964,7 +965,7 @@
         ? `<div class="price-block"><div class="price-from">desde</div><div class="price-val">S/ ${precio}</div><div class="price-unit">/ ${w.precioTipo === 'Por servicio' ? 'servicio' : 'hora'}</div></div>` : '';
 
       return `<div class="worker-card destacado" style="animation-delay:${index*0.07}s"
-        data-cats="${cats.map(c=>c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')).join(',')}"
+        data-cats="${cats.map(c=>c.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')).join(',')}"
         data-verificado="${verificado}" data-turno="${turnoKey}" data-dias="${diasKey}"
         data-price="${precio}" data-rating="${rating}">
         ${avatarHTML}
@@ -983,7 +984,7 @@
       </div>`;
     } else {
       return `<div class="worker-card basico" style="animation-delay:${index*0.07}s"
-        data-cats="${cats.map(c=>c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')).join(',')}"
+        data-cats="${cats.map(c=>c.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')).join(',')}"
         data-verificado="false" data-turno="" data-dias="" data-price="0" data-rating="0">
         <div class="avatar avatar-placeholder"><i class="ti ti-user"></i></div>
         <div>
@@ -1000,27 +1001,8 @@
     }
   }
 
-  function parseCSV(text) {
-    const lines = text.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
-    return lines.slice(1).map(line => {
-      const cols = [];
-      let cur = ''; let inQ = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"') { inQ = !inQ; }
-        else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
-        else { cur += ch; }
-      }
-      cols.push(cur.trim());
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = (cols[i] || '').replace(/^"|"$/g,'').trim(); });
-      return obj;
-    });
-  }
-
   // Normalize string — remove accents for safe comparison
-  function norm(s) { return (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
+  function norm(s) { return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim(); }
 
   // Find value by normalized column name
   function getCol(row, name) {
@@ -1029,30 +1011,40 @@
     return key ? row[key] : '';
   }
 
+  // ── Load Google Sheet via JSONP (no CORS proxy needed) ──
+  function loadSheetViaJSONP(sheetId) {
+    return new Promise((resolve, reject) => {
+      const cb = '_gviz_' + Date.now();
+      const s = document.createElement('script');
+      s.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json;responseHandler:${cb}&gid=0`;
+      window[cb] = (data) => { delete window[cb]; s.remove(); resolve(data); };
+      s.onerror = () => { delete window[cb]; s.remove(); reject(new Error('No se pudo cargar el sheet')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  // Convert gviz response to array of row objects keyed by column label
+  function gvizToRows(data) {
+    const cols = data.table.cols.map(c => c.label);
+    return data.table.rows.map(row => {
+      const obj = {};
+      cols.forEach((col, i) => {
+        const cell = row.c[i];
+        obj[col] = (cell && cell.v !== null && cell.v !== undefined) ? String(cell.v) : '';
+      });
+      return obj;
+    });
+  }
+
   async function loadWorkers() {
     try {
-      // Try multiple proxies in sequence until one works
-      const proxies = [
-        'https://api.allorigins.win/raw?url=',
-        'https://corsproxy.io/?',
-        'https://proxy.cors.sh/',
-        'https://crossorigin.me/'
-      ];
-
-      let text = null;
-      for (const proxy of proxies) {
-        try {
-          const res = await fetch(proxy + encodeURIComponent(CSV_URL));
-          if (res.ok) { text = await res.text(); break; }
-        } catch(e) { continue; }
-      }
-      if (!text) throw new Error('All proxies failed');
-      const rows = parseCSV(text);
+      const data = await loadSheetViaJSONP(SHEET_ID);
+      const rows = gvizToRows(data);
 
       const workers = rows.filter(row => {
-        const activo = getCol(row, 'Activo');
+        const activo = getCol(row, 'Activo').toLowerCase();
         const nombre = getCol(row, 'Nombre');
-        return activo === 'TRUE' && nombre.length > 0;
+        return activo === 'true' && nombre.length > 0;
       }).map(row => ({
         nombre:          getCol(row, 'Nombre'),
         apellido:        getCol(row, 'Apellido'),
@@ -1118,7 +1110,7 @@
       updateCount();
     } catch (e) {
       document.getElementById('destacado-cards').innerHTML =
-        '<p style="padding:24px;color:var(--ink-35);font-size:13px;text-align:center">Error cargando trabajadores. Verifica que el Google Sheet sea público.</p>';
+        '<p style="padding:24px;color:var(--ink-35);font-size:13px;text-align:center">Error cargando trabajadores. Asegúrate de que el Google Sheet esté compartido como "Cualquier persona con el enlace puede ver".</p>';
       console.error('Error loading sheet:', e);
     }
   }
