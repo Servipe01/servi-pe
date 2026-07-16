@@ -943,7 +943,8 @@
     const rating = parseFloat(w.rating) || 0;
     const reviews = parseInt(w.reviews) || 0;
     const precio = parseInt(w.precio) || 0;
-    const verificado = w.verificado.toLowerCase() === 'true';
+    const vval = w.verificado.toLowerCase();
+    const verificado = vval === 'true' || vval === 'sí' || vval === 'si';
     const turnoKey = (w.turno || '').toLowerCase().replace(/ /g,'');
     const diasKey  = (w.diasDisponibles || '').toLowerCase().replace(/ /g,'');
 
@@ -1044,7 +1045,7 @@
       const workers = rows.filter(row => {
         const activo = getCol(row, 'Activo').toLowerCase();
         const nombre = getCol(row, 'Nombre');
-        return activo === 'true' && nombre.length > 0;
+        return (activo === 'true' || activo === 'sí' || activo === 'si') && nombre.length > 0;
       }).map(row => ({
         nombre:          getCol(row, 'Nombre'),
         apellido:        getCol(row, 'Apellido'),
@@ -1162,10 +1163,4 @@
   // Spinner animation
   const style = document.createElement('style');
   style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
-  document.head.appendChild(style);
-
-  // Load on page ready
-  loadWorkers();
-</script>
-</body>
-</html>
+  docum
