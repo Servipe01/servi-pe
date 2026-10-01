@@ -6,6 +6,10 @@ set -euo pipefail
 REPO=https://github.com/Servipe01/servi-pe.git
 APP=/opt/servi-pe
 ENV_FILE=/etc/servibot/servibot.env
+# Public web address of the bot. Default: a free sslip.io name built from the server IP,
+# so no DNS setup is needed. To use your own: BOT_HOST=bot.servi.pe bash setup.sh
+PUBLIC_IP=$(curl -fsS --max-time 5 http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || hostname -I | awk '{print $1}')
+BOT_HOST=${BOT_HOST:-$(echo "$PUBLIC_IP" | tr . -).sslip.io}
 
 echo "==> Installing system packages"
 export DEBIAN_FRONTEND=noninteractive
@@ -42,11 +46,12 @@ if [ ! -f "$ENV_FILE" ]; then
   sed -i "s|^SHEETS_SECRET=.*|SHEETS_SECRET=$(openssl rand -hex 24)|" "$ENV_FILE"
   NEW_SECRETS=1
 fi
+sed -i "s|^PUBLIC_BASE_URL=.*|PUBLIC_BASE_URL=https://$BOT_HOST|" "$ENV_FILE"
 chown root:servibot "$ENV_FILE"
 chmod 640 "$ENV_FILE"
 
 echo "==> Web server (HTTPS certificate is automatic)"
-cp "$APP/bot/deploy/Caddyfile" /etc/caddy/Caddyfile
+sed "s|__BOT_HOST__|$BOT_HOST|" "$APP/bot/deploy/Caddyfile" > /etc/caddy/Caddyfile
 systemctl reload caddy || systemctl restart caddy
 
 echo "==> Bot service"
@@ -57,6 +62,8 @@ systemctl restart servibot
 
 echo
 echo "Done. Bot status: $(systemctl is-active servibot)"
+echo "Bot address:  https://$BOT_HOST"
+echo "Meta webhook: https://$BOT_HOST/webhook"
 if [ "$NEW_SECRETS" = 1 ]; then
   echo
   echo "Two secrets were generated. You will paste them in two places:"

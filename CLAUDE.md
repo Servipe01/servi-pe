@@ -20,7 +20,7 @@ Owner: Victor Cuadros.
 | Worker data | Google Sheet ID `1U63yLHUW88m0SeN1QmTNI7HjTP8NTAz22hdAb-R-HdQ`, first tab (gid=0) | Site reads it live in the browser via the gviz JSONP endpoint, so the sheet must stay shared as "anyone with the link can view" |
 | Worker photos | Google Drive links in the sheet column "Foto URL" | Converted to `drive.google.com/uc?export=view&id=...` by `toImgUrl()` |
 | Registration | Manual: workers tap a wa.me link to WhatsApp +51 981 571 118 | Profiles are then typed into the sheet by hand |
-| Bot server | DigitalOcean Droplet `servi-pe-server`, IP 142.93.192.86, Ubuntu 24.04, NYC1, USD 6 per month | Will serve `https://bot.servi.pe` (webhook and profile photos) |
+| Bot server | DigitalOcean Droplet `servi-pe-server`, IP 142.93.192.86, Ubuntu 24.04, NYC1, USD 6 per month | Serves the bot at `https://142-93-192-86.sslip.io` (free name, no DNS needed; switch to bot.servi.pe later with `BOT_HOST=bot.servi.pe` when the servi.pe DNS is reachable) |
 | Bot code | `bot/` folder in this repo (excluded from Vercel by `.vercelignore`) | Python, FastAPI. See "WhatsApp bot" below |
 
 ### Sheet columns the site reads
@@ -65,7 +65,7 @@ Install or update on the server (as root): `curl -fsSL https://raw.githubusercon
 
 ## Plan
 
-1. Go live: DNS `bot.servi.pe` to 142.93.192.86; run setup.sh; private sheet plus Apps Script; Meta permanent token, app secret, webhook (`https://bot.servi.pe/webhook`), templates; publish the app.
+1. Go live: run setup.sh (uses 142-93-192-86.sslip.io); servi.pe DNS (GoDaddy, login unclear) can wait; private sheet plus Apps Script; Meta permanent token, app secret, webhook (`https://bot.servi.pe/webhook`), templates; publish the app.
 2. Change the site's "Crea tu perfil" links from 981 to the bot number 907 once the bot is live.
 3. Later, if volume grows: move from the Google Sheet to a real database.
 
