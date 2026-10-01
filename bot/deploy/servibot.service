@@ -1,0 +1,15 @@
+[Unit]
+Description=Servi.pe WhatsApp bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=servibot
+EnvironmentFile=/etc/servibot/servibot.env
+WorkingDirectory=/opt/servi-pe/bot
+ExecStart=/opt/servi-pe/bot/.venv/bin/python -m servibot
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
