@@ -15,6 +15,16 @@ from .store import Store
 log = logging.getLogger("servibot")
 
 
+class UnconfiguredSheets:
+    """Used until SHEETS_URL is set: the bot still runs and keeps registrations in its own database."""
+
+    async def append(self, public_values, private_values):
+        raise RuntimeError("hoja de Google no conectada todavía (falta SHEETS_URL)")
+
+    async def set_status(self, reg_id, public_updates, private_updates):
+        raise RuntimeError("hoja de Google no conectada todavía (falta SHEETS_URL)")
+
+
 def parse_messages(payload: dict):
     """Turn a Meta webhook payload into simple message dicts."""
     out = []
@@ -54,8 +64,10 @@ def create_app(settings: Settings | None = None, bot: Bot | None = None) -> Fast
         wa = WhatsApp(settings.wa_token, settings.wa_phone_id, settings.graph_version)
         if settings.sheets_url:
             sheets = AppsScriptSheets(settings.sheets_url, settings.sheets_secret)
-        else:
+        elif Path(settings.google_creds).is_file():
             sheets = Sheets(settings.google_creds, settings.sheet_id, settings.private_sheet_id)
+        else:
+            sheets = UnconfiguredSheets()
         bot = Bot(settings, store, wa, sheets)
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
