@@ -18,6 +18,8 @@ class Settings:
 
     # Human handoff: alerts go to this number (international format, no +)
     admin_number: str = field(default_factory=lambda: _env("ADMIN_NUMBER", "51981571118"))
+    # Admin's WhatsApp username ID(s) (BSUID like PE.123...), comma separated. Messages from these count as admin.
+    admin_user_ids: str = field(default_factory=lambda: _env("ADMIN_USER_ID"))
     # Approved utility templates used when the 24 hour window is closed
     admin_template: str = field(default_factory=lambda: _env("ADMIN_TEMPLATE", "aviso_equipo"))
     worker_template: str = field(default_factory=lambda: _env("WORKER_TEMPLATE", "seguimiento_perfil"))

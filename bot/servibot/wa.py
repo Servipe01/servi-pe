@@ -1,8 +1,19 @@
 """Minimal WhatsApp Cloud API client."""
+import re
+
 import httpx
 
 # Meta error code when the 24 hour customer service window is closed
 WINDOW_CLOSED = 131047
+
+
+def is_bsuid(to: str) -> bool:
+    """Business-scoped user ID (users with a WhatsApp username), e.g. PE.1596213328650795"""
+    return bool(re.fullmatch(r"[A-Z]{2}\.\d+", to or ""))
+
+
+def dest(to: str) -> dict:
+    return {"recipient": to} if is_bsuid(to) else {"to": to}
 
 
 class WAError(Exception):
@@ -31,10 +42,10 @@ class WhatsApp:
         """Send a message described as {"type": "text"|"buttons"|"list"|"image"|"template", ...}."""
         kind = msg["type"]
         if kind == "text":
-            return await self._send({"to": to, "type": "text", "text": {"body": msg["text"], "preview_url": False}})
+            return await self._send({**dest(to), "type": "text", "text": {"body": msg["text"], "preview_url": False}})
         if kind == "buttons":
             return await self._send({
-                "to": to, "type": "interactive",
+                **dest(to), "type": "interactive",
                 "interactive": {
                     "type": "button",
                     "body": {"text": msg["text"]},
@@ -45,7 +56,7 @@ class WhatsApp:
             })
         if kind == "list":
             return await self._send({
-                "to": to, "type": "interactive",
+                **dest(to), "type": "interactive",
                 "interactive": {
                     "type": "list",
                     "body": {"text": msg["text"]},
@@ -61,13 +72,13 @@ class WhatsApp:
             image = {"id": msg["media_id"]} if msg.get("media_id") else {"link": msg["link"]}
             if msg.get("caption"):
                 image["caption"] = msg["caption"]
-            return await self._send({"to": to, "type": "image", "image": image})
+            return await self._send({**dest(to), "type": "image", "image": image})
         if kind == "template":
             params = [{"type": "text", "text": p} for p in msg.get("params", [])]
             tpl = {"name": msg["name"], "language": {"code": msg.get("lang", "es")}}
             if params:
                 tpl["components"] = [{"type": "body", "parameters": params}]
-            return await self._send({"to": to, "type": "template", "template": tpl})
+            return await self._send({**dest(to), "type": "template", "template": tpl})
         raise ValueError(f"unknown message type {kind}")
 
     async def download_media(self, media_id: str) -> tuple[bytes, str]:

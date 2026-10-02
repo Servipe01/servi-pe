@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 
 from .sheets import norm
-from .wa import WAError, WINDOW_CLOSED
+from .wa import WAError, WINDOW_CLOSED, is_bsuid
 
 CATEGORIES = ["Limpieza", "Niñera", "Gasfitería", "Electricidad", "Pintura", "Carpintería", "Jardinería"]
 DAYS = [("dias_semana", "Semana", "Semana"), ("dias_finde", "Finde", "Finde"),
@@ -65,7 +65,9 @@ def split_full_name(full: str):
 
 
 def local_number(wa_id: str) -> str:
-    """51987654321 -> 987 654 321 for display."""
+    """51987654321 -> 987 654 321 for display. Username IDs (PE.123...) are shown as they are."""
+    if is_bsuid(wa_id):
+        return wa_id
     d = wa_id[2:] if wa_id.startswith("51") and len(wa_id) == 11 else wa_id
     return f"{d[0:3]} {d[3:6]} {d[6:]}" if len(d) == 9 else d
 
@@ -116,6 +118,9 @@ class Bot:
         """msg: {id, from, type, text, reply_id, media_id, profile_name}"""
         if msg.get("id") and self.store.seen(msg["id"]):
             return
+        admin_ids = {x.strip() for x in (self.s.admin_user_ids or "").split(",") if x.strip()}
+        if msg["from"] in admin_ids:
+            msg["from"] = self.s.admin_number  # same person, whether WhatsApp shows the number or the username ID
         sender = msg["from"]
         self.store.touch_inbound(sender)
         for held in self.store.pop_queued(sender):
@@ -164,6 +169,10 @@ class Bot:
                 "de contacto en tu perfil? Los clientes te escribirán ahí."),
                 "buttons": [("contacto_si", "Sí, este número"), ("contacto_otro", "Usar otro número")]}
         if state == "contacto_otro":
+            if is_bsuid(data.get("origen", "")):
+                return {"type": "text", "text": (
+                    "¿A qué número de WhatsApp te pueden escribir los clientes? "
+                    "Escríbelo con 9 dígitos, empieza con 9. Por ejemplo: *987654321*")}
             return {"type": "text", "text": "Escribe el número de WhatsApp que quieres mostrar (9 dígitos, empieza con 9)."}
         if state == "foto":
             return {"type": "buttons", "text": (
@@ -326,7 +335,8 @@ class Bot:
             if not (1 <= value <= 5000):
                 return None, "Escribe solo el monto en soles, con números. Por ejemplo: *25*"
             data["precio"] = str(value)
-            return "contacto", None
+            # users with a WhatsApp username don't share their number with us, so ask for it directly
+            return ("contacto_otro" if is_bsuid(data.get("origen", "")) else "contacto"), None
 
         if state == "contacto":
             if reply == "contacto_si" or norm(text) in {"si", "sí", "si, este numero"}:
@@ -436,6 +446,8 @@ class Bot:
 
     # ------------------------------------------------------------------ admin
     def resolve_target(self, arg: str):
+        if re.fullmatch(r"[A-Za-z]{2}\.\d+", arg.strip()):
+            return arg.strip()[:2].upper() + arg.strip()[2:]
         digits = re.sub(r"\D", "", arg)
         if not digits:
             return None

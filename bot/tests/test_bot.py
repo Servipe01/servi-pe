@@ -273,3 +273,45 @@ def test_privacy_page(env):
     bot, wa, sh = env
     r = TestClient(create_app(bot.s, bot)).get("/privacidad")
     assert r.status_code == 200 and "Política de privacidad" in r.text
+
+
+U = "PE.1596213328650795"  # a WhatsApp username user: Meta sends an ID instead of the phone number
+
+
+def test_parse_username_user():
+    payload = {"entry": [{"changes": [{"value": {
+        "contacts": [{"profile": {"name": "Victor", "username": "VCuadros"}, "user_id": U}],
+        "messages": [{"from_user_id": U, "id": "x", "type": "text", "text": {"body": "Hola"}}]}}]}]}
+    (msg,) = parse_messages(payload)
+    assert msg["from"] == U and msg["profile_name"] == "Victor" and msg["text"] == "Hola"
+
+
+def test_send_uses_recipient_for_username_ids():
+    from servibot.wa import dest
+    assert dest(U) == {"recipient": U}
+    assert dest("51987654321") == {"to": "51987654321"}
+
+
+def test_admin_recognized_by_username_id(env):
+    bot, wa, sh = env
+    bot.s.admin_user_ids = U
+    run(bot, m(U, "hola"))
+    assert any("Comandos del equipo" in t for t in wa.texts(ADMIN))
+
+
+def test_username_worker_is_asked_for_contact_number(env):
+    bot, wa, sh = env
+    run(bot, m(U, "hola"), m(U, "rosa"), m(U, "12345678"), m(U, image=True), m(U, "1"),
+        m(U, reply="dias_semana"), m(U, reply="turno_manana"), m(U, reply="precio_hora"), m(U, "20"))
+    assert "¿A qué número de WhatsApp te pueden escribir" in wa.texts(U)[-1]
+    run(bot, m(U, "987 111 222"), m(U, reply="foto_omitir"), m(U, reply="confirmar_si"))
+    assert sh.rows[0]["WhatsApp"] == "51987111222"
+    assert any(f"responder {U}" in t or "responder 1" in t for t in wa.texts(ADMIN))
+
+
+def test_relay_to_username_worker(env):
+    bot, wa, sh = env
+    run(bot, m(U, "hola"), m(U, "persona"))
+    assert any(f"responder {U}" in t for t in wa.texts(ADMIN))
+    run(bot, m(ADMIN, f"responder {U.lower()}"), m(ADMIN, "Hola, te ayudo"))
+    assert "Hola, te ayudo" in wa.texts(U)

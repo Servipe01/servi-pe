@@ -57,11 +57,18 @@ def parse_messages(payload: dict):
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
-            names = {c.get("wa_id"): c.get("profile", {}).get("name", "") for c in value.get("contacts", [])}
+            names = {}
+            for c in value.get("contacts", []):
+                for key in (c.get("wa_id"), c.get("user_id")):
+                    if key:
+                        names[key] = c.get("profile", {}).get("name", "")
             for m in value.get("messages", []):
+                if not (m.get("from") or m.get("from_user_id")):
+                    continue
                 kind = m.get("type")
-                msg = {"id": m.get("id"), "from": m.get("from"), "type": kind, "text": "",
-                       "reply_id": "", "media_id": "", "profile_name": names.get(m.get("from"), "")}
+                sender = m.get("from") or m.get("from_user_id")
+                msg = {"id": m.get("id"), "from": sender, "type": kind, "text": "",
+                       "reply_id": "", "media_id": "", "profile_name": names.get(sender, "")}
                 if kind == "text":
                     msg["text"] = m.get("text", {}).get("body", "")
                 elif kind == "interactive":
