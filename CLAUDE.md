@@ -81,7 +81,7 @@ The public sheet is titled "servi.pe"; its Apps Script project is called "Servi 
 
 ## Status
 
-LIVE since 2026-10-02: bot at https://142-93-192-86.sslip.io, Google Sheet connected, Meta connected (system user "servibot", token never expires, number registered with Victor's PIN, webhook subscribed, app published). Victor's WhatsApp has a username, so Meta identifies him by ID `PE.1596213328650795` (`ADMIN_USER_ID` on the server); the bot supports these username IDs (Meta's `from_user_id` / `recipient`). Pending: notice templates `aviso_equipo` and `seguimiento_perfil`; first real worker test.
+LIVE since 2026-10-02: bot at https://142-93-192-86.sslip.io, Google Sheet connected, Meta connected (system user "servibot", token never expires, number registered with Victor's PIN, webhook subscribed, app published). Victor's WhatsApp has a username, so Meta identifies him by ID `PE.1596213328650795` (`ADMIN_USER_ID` on the server); the bot supports these username IDs (Meta's `from_user_id` / `recipient`). Pending (next session): first real worker test from another phone (Victor approves with `aprobar 1 Nombres Apellidos`); notice templates `aviso_equipo` and `seguimiento_perfil` in WhatsApp Manager; optional private sheet; bot.servi.pe once GoDaddy access is recovered.
 
 ## Log
 
@@ -89,3 +89,10 @@ LIVE since 2026-10-02: bot at https://142-93-192-86.sslip.io, Google Sheet conne
 * 2026-07-16: Several updates to `index.html`.
 * 2026-10-01: Context rebuilt after it was lost between sessions. Reviewed DigitalOcean, GitHub and DNS. Wrote this handbook. Chose +51 907 434 222 as the bot number. Created Servi.pe portfolio, moved Twisso page in, requested rename, created Meta app, verified the bot number, wrote the bot, uploaded it to GitHub, installed it on the server (sslip.io address, GoDaddy login not available), connected the Google Sheet, connected Meta (setup command `servibot-config` on the server checks each key with Meta), published the app, first live test OK.
 * 2026-10-02: Accept DNI, carné de extranjería or CPP/PTP; Destacado requests go to Victor; site now uses 907 and ayuda@servi.pe. Note: git push from Claude's sandbox is blocked; uploads go through the GitHub website in Victor's Chrome. Victor is a beginner: give one small step at a time.
+* 2026-10-02: Fixed the bottom "Crea tu perfil gratis ahora" button (decorative `.register-section::before` circle was covering it; now `pointer-events:none`). Session ended with everything live; Victor continues next day.
+
+## How to ship changes (Claude's sandbox cannot git push)
+
+* Small edit to an existing file: on `github.com/Servipe01/servi-pe/upload/main/<folder>` in Victor's Chrome, run JS that fetches the raw file, applies the replacement, attaches it to the upload input and clicks Commit changes.
+* Bigger changes: copy the whole repo into Victor's connected folder Documents > servi.pe and ask him to drag everything onto the GitHub upload page (files starting with a dot are skipped by drag and drop).
+* Then update the server from the DigitalOcean web console: `git -C /opt/servi-pe pull -q && systemctl restart servibot` (or rerun setup.sh). Check with the privacy page or `systemctl is-active servibot`.
