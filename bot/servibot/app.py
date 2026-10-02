@@ -23,11 +23,12 @@ h1{font-size:1.6em}h2{font-size:1.15em;margin-top:1.6em}</style></head><body>
 (limpieza, cuidado de niños, gasfitería, electricidad, pintura, carpintería y jardinería).
 Esta política explica qué datos recogemos a través de nuestro asistente de WhatsApp y cómo los usamos.</p>
 <h2>Datos que recogemos</h2>
-<p>Cuando un trabajador crea su perfil por WhatsApp nos comparte: su nombre, número y foto de DNI,
+<p>Cuando un trabajador crea su perfil por WhatsApp nos comparte: su nombre, el número y una foto de su documento
+de identidad (DNI, carné de extranjería, CPP o PTP),
 servicios que ofrece, días y horario disponibles, precio referencial, número de WhatsApp de contacto
 y, si lo desea, una foto de perfil.</p>
 <h2>Para qué los usamos</h2>
-<p>Usamos el DNI y su foto solo para verificar la identidad del trabajador. No se publican.
+<p>Usamos el documento y su foto solo para verificar la identidad del trabajador. No se publican.
 Publicamos en servi.pe el nombre, servicios, disponibilidad, precio, foto de perfil y el WhatsApp de contacto,
 para que los clientes puedan contactar al trabajador directamente.</p>
 <h2>Con quién los compartimos</h2>

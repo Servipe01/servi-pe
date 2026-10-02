@@ -19,7 +19,7 @@ Owner: Victor Cuadros.
 | Hosting | Vercel, deploys automatically from the GitHub repo | `servi.pe` and `www.servi.pe` DNS point to Vercel |
 | Worker data | Google Sheet ID `1U63yLHUW88m0SeN1QmTNI7HjTP8NTAz22hdAb-R-HdQ`, first tab (gid=0) | Site reads it live in the browser via the gviz JSONP endpoint, so the sheet must stay shared as "anyone with the link can view" |
 | Worker photos | Google Drive links in the sheet column "Foto URL" | Converted to `drive.google.com/uc?export=view&id=...` by `toImgUrl()` |
-| Registration | Manual: workers tap a wa.me link to WhatsApp +51 981 571 118 | Profiles are then typed into the sheet by hand |
+| Registration | WhatsApp bot on +51 907 434 222 (all site buttons, footer and legal notice point there since 2026-10-02) | Contact email on the site: ayuda@servi.pe |
 | Bot server | DigitalOcean Droplet `servi-pe-server`, IP 142.93.192.86, Ubuntu 24.04, NYC1, USD 6 per month | Serves the bot at `https://142-93-192-86.sslip.io` (free name, no DNS needed; switch to bot.servi.pe later with `BOT_HOST=bot.servi.pe` when the servi.pe DNS is reachable) |
 | Bot code | `bot/` folder in this repo (excluded from Vercel by `.vercelignore`) | Python, FastAPI. See "WhatsApp bot" below |
 
@@ -33,7 +33,7 @@ Any new tool that creates profiles (the WhatsApp bot) must write rows in exactly
 
 ### Config at the top of the script in index.html
 
-`SHEET_ID`, `WA_NUMBER` (51981571118), `SHOW_COUNTER_AT` (100: the worker counter pill appears publicly at 100 workers).
+`SHEET_ID`, `WA_NUMBER` (51907434222, the bot; was Victor's personal 981 until 2026-10-02), `SHOW_COUNTER_AT` (100: the worker counter pill appears publicly at 100 workers).
 
 ## Meta / WhatsApp setup
 
@@ -49,11 +49,11 @@ Any new tool that creates profiles (the WhatsApp bot) must write rows in exactly
 
 Decisions (Victor, 2026-10-01): bot only on 907; human handoff by alerts to Victor's 981 in relay mode; no districts question; ask whether the sender's number is the contact number.
 
-Flow (Spanish): nombre (first name only, for the chat), DNI (8 digits), foto DNI (private), servicios (numbers 1 to 7), días (Semana / Finde / Semana y finde), horario (Mañana / Tarde / Noche / Horario flexible), cobro (Por hora / Por servicio), precio, WhatsApp de contacto (this number or another), foto de perfil (optional), confirmar.
+Flow (Spanish): nombre (first name only, for the chat), tipo de documento (DNI / Carné de extranjería / CPP o PTP, for foreign workers such as Venezuelans), número (DNI 8 digits; CE 8 to 12; CPP/PTP 6 to 12 letters or digits), foto del documento (private), servicios (numbers 1 to 7), días (Semana / Finde / Semana y finde), horario (Mañana / Tarde / Noche / Horario flexible), cobro (Por hora / Por servicio), precio, WhatsApp de contacto (this number or another), foto de perfil (optional), confirmar.
 Values match the site filters (`includes('semana')`, `includes('finde')`, turno `horarioflexible`).
 
 On confirm: row appended to the public sheet with `Activo` = No (hidden) and empty `Apellido`, private row (DNI etc.) to the private sheet if configured, alert plus DNI photo to Victor.
-Worker can type *persona* at any time; after 3 failed answers Victor gets an "atascado" alert.
+Worker can type *persona* at any time; any message containing "Destacado" (the site's upgrade button) goes straight to Victor; after 3 failed answers Victor gets an "atascado" alert.
 
 Official name: Victor copies it from the DNI photo when approving (decision 2026-10-01): `aprobar N Nombres Apellidos` (last two words = apellidos; use `/` to split explicitly: `aprobar N Ana Lucía / Pérez Rojas`). This sets Nombre, Apellido, Activo, Verificado. Re-running it fixes the name without messaging the worker again.
 Victor's commands (from 981 to the bot): `pendientes`, `aprobar N Nombres Apellidos`, `rechazar N motivo`, `responder 9XXXXXXXX` or `responder N` (relay: his texts go out from 907), `fin`.
@@ -70,7 +70,7 @@ The public sheet is titled "servi.pe"; its Apps Script project is called "Servi 
 ## Plan
 
 1. Go live (remaining): Meta permanent token and app secret into the server settings, webhook `https://142-93-192-86.sslip.io/webhook` with the server's `WA_VERIFY_TOKEN`, register the 907 number (6 digit PIN), templates `aviso_equipo` and `seguimiento_perfil`, publish the app, test from a phone. Optional later: private sheet (`PRIVATE_SHEET_ID`), bot.servi.pe once GoDaddy access is recovered.
-2. Change the site's "Crea tu perfil" links from 981 to the bot number 907 once the bot is live.
+2. Done 2026-10-02: site buttons and contact now point to 907; email ayuda@servi.pe; wording "Identidad verificada".
 3. Later, if volume grows: move from the Google Sheet to a real database.
 
 ## Open questions and risks
@@ -81,10 +81,11 @@ The public sheet is titled "servi.pe"; its Apps Script project is called "Servi 
 
 ## Status
 
-Bot running on the server at https://142-93-192-86.sslip.io and connected to the Google Sheet. Meta (token, webhook, PIN registration, templates) still to connect.
+LIVE since 2026-10-02: bot at https://142-93-192-86.sslip.io, Google Sheet connected, Meta connected (system user "servibot", token never expires, number registered with Victor's PIN, webhook subscribed, app published). Victor's WhatsApp has a username, so Meta identifies him by ID `PE.1596213328650795` (`ADMIN_USER_ID` on the server); the bot supports these username IDs (Meta's `from_user_id` / `recipient`). Pending: notice templates `aviso_equipo` and `seguimiento_perfil`; first real worker test.
 
 ## Log
 
 * 2026-05-26: Site uploaded to GitHub (`servi.pe.html` renamed to `index.html`).
 * 2026-07-16: Several updates to `index.html`.
-* 2026-10-01: Context rebuilt after it was lost between sessions. Reviewed DigitalOcean, GitHub and DNS. Wrote this handbook. Chose +51 907 434 222 as the bot number. Created Servi.pe portfolio, moved Twisso page in, requested rename, created Meta app, verified the bot number, wrote the bot, uploaded it to GitHub, installed it on the server (sslip.io address, GoDaddy login not available), connected the Google Sheet. Note: git push from Claude's sandbox is blocked; uploads go through the GitHub website in Victor's Chrome. Victor is a beginner: give one small step at a time.
+* 2026-10-01: Context rebuilt after it was lost between sessions. Reviewed DigitalOcean, GitHub and DNS. Wrote this handbook. Chose +51 907 434 222 as the bot number. Created Servi.pe portfolio, moved Twisso page in, requested rename, created Meta app, verified the bot number, wrote the bot, uploaded it to GitHub, installed it on the server (sslip.io address, GoDaddy login not available), connected the Google Sheet, connected Meta (setup command `servibot-config` on the server checks each key with Meta), published the app, first live test OK.
+* 2026-10-02: Accept DNI, carné de extranjería or CPP/PTP; Destacado requests go to Victor; site now uses 907 and ayuda@servi.pe. Note: git push from Claude's sandbox is blocked; uploads go through the GitHub website in Victor's Chrome. Victor is a beginner: give one small step at a time.

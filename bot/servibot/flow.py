@@ -13,12 +13,20 @@ DAYS = [("dias_semana", "Semana", "Semana"), ("dias_finde", "Finde", "Finde"),
 SHIFTS = [("turno_manana", "Mañana"), ("turno_tarde", "Tarde"), ("turno_noche", "Noche"),
           ("turno_flexible", "Horario flexible")]
 PRICE_TYPES = [("precio_hora", "Por hora"), ("precio_servicio", "Por servicio")]
+# Identity documents accepted (many workers in Lima are foreigners, e.g. Venezuelans with CE or CPP/PTP)
+DOC_TYPES = [("doc_dni", "DNI"), ("doc_ce", "Carné de extranjería"), ("doc_cpp", "CPP o PTP")]
+DOC_RULES = {  # name -> (regex for the number, hint shown to the worker)
+    "DNI": (r"\d{8}", "8 dígitos"),
+    "Carné de extranjería": (r"[A-Z0-9]{8,12}", "normalmente 9 dígitos"),
+    "CPP o PTP": (r"[A-Z0-9]{6,12}", "el número que aparece en tu documento"),
+}
 
 HANDOFF_WORDS = {"persona", "humano", "asesor", "asesora", "hablar con una persona", "ayuda humana"}
 RESTART_WORDS = {"reiniciar", "empezar de nuevo", "volver a empezar"}
 
 STEP_NAMES = {
-    "nombre": "nombre", "dni": "número de DNI", "dni_foto": "foto del DNI",
+    "nombre": "nombre", "doc_tipo": "tipo de documento", "dni": "número de documento",
+    "dni_foto": "foto del documento",
     "categorias": "servicios", "dias": "días", "turno": "turno", "precio_tipo": "tipo de precio",
     "precio": "precio", "contacto": "número de contacto", "contacto_otro": "otro número",
     "foto": "foto de perfil", "confirmar": "confirmación",
@@ -27,7 +35,7 @@ STEP_NAMES = {
 ADMIN_HELP = (
     "Comandos del equipo Servi:\n"
     "*pendientes*: perfiles por revisar\n"
-    "*aprobar N Nombres Apellidos*: publica el perfil N con el nombre tal como aparece en el DNI "
+    "*aprobar N Nombres Apellidos*: publica el perfil N con el nombre tal como aparece en su documento "
     "(si hay duda con la separación usa una barra: *aprobar N Ana Lucía / Pérez Rojas*)\n"
     "*rechazar N motivo*: rechaza el perfil N (el motivo se envía al trabajador)\n"
     "*responder 9XXXXXXXX* o *responder N*: hablas tú con ese trabajador\n"
@@ -138,13 +146,18 @@ class Bot:
                 "¡Hola! Soy el asistente de *Servi*. Te ayudo a crear tu perfil gratis en servi.pe "
                 "en unos 3 minutos.\n\nEn cualquier momento puedes escribir *persona* para hablar con "
                 "nuestro equipo.\n\n¿Cómo te llamas?")}
+        if state == "doc_tipo":
+            return {"type": "buttons", "text": (
+                f"Gracias, {nombre}. ¿Qué *documento de identidad* tienes?\n\n"
+                "Lo usamos solo para verificar tu identidad. No se muestra en tu perfil."),
+                "buttons": DOC_TYPES}
         if state == "dni":
-            return {"type": "text", "text": (
-                "¿Cuál es tu número de *DNI*? (8 dígitos)\n\n"
-                "Lo usamos solo para verificar tu identidad. No se muestra en tu perfil.")}
+            doc = data.get("doc_tipo", "DNI")
+            return {"type": "text", "text": f"Escribe el número de tu *{doc}* ({DOC_RULES[doc][1]})."}
         if state == "dni_foto":
+            doc = data.get("doc_tipo", "DNI")
             return {"type": "text", "text": (
-                "Envíanos una *foto de tu DNI* (la cara con tu foto), bien iluminada y legible. "
+                f"Envíanos una *foto de tu {doc}* (el lado con tu foto), bien iluminada y legible. "
                 "Es privada y solo la ve nuestro equipo.")}
         if state == "categorias":
             lines = "\n".join(f"{i}. {c}" for i, c in enumerate(CATEGORIES, start=1))
@@ -191,7 +204,7 @@ class Bot:
         return (
             f"{header}\n"
             f"Nombre: {data.get('nombre', '')}\n"
-            f"DNI: {data.get('dni', '')}\n"
+            f"{data.get('doc_tipo', 'DNI')}: {data.get('dni', '')}\n"
             f"Servicios: {', '.join(data.get('categorias', []))}\n"
             f"Días: {data.get('dias', '')}\n"
             f"Horario: {data.get('turno', '')}\n"
@@ -208,6 +221,9 @@ class Bot:
 
         if sess is None:
             data = {"origen": sender, "perfil_wa": msg.get("profile_name", "")}
+            if "destacado" in t:  # came from the site's "Mejorar a Destacado" button
+                await self.start_handoff(sender, "listo", data, text, motivo="quiere mejorar su perfil a *Destacado*")
+                return
             self.store.save_session(sender, "nombre", data)
             await self.out(sender, self.prompt("nombre", data))
             return
@@ -222,11 +238,20 @@ class Bot:
             await self.start_handoff(sender, state, data, text)
             return
 
+        if "destacado" in t:
+            await self.start_handoff(sender, state, data, text, motivo="quiere mejorar su perfil a *Destacado*")
+            return
+
         if state == "listo":
             reg = self.store.latest_registration_for(sender)
-            if reg and reg["status"] == "aprobado":
+            if reg is None:  # e.g. came in through the Destacado button without a profile yet
+                data = {"origen": data.get("origen", sender), "perfil_wa": data.get("perfil_wa", "")}
+                self.store.save_session(sender, "nombre", data)
+                await self.out(sender, self.prompt("nombre", data))
+                return
+            if reg["status"] == "aprobado":
                 body = "Tu perfil ya está publicado en servi.pe. Si necesitas cambiar algo, escribe *persona*."
-            elif reg and reg["status"] == "rechazado":
+            elif reg["status"] == "rechazado":
                 body = "Tu perfil no fue aprobado. Escribe *persona* para hablar con nuestro equipo."
             else:
                 body = "Tu perfil está en revisión. Te avisamos por aquí apenas esté publicado."
@@ -269,18 +294,37 @@ class Bot:
             if not (2 <= len(clean) <= 40) or not NAME_RE.fullmatch(clean):
                 return None, "Escribe tu nombre solo con letras. Por ejemplo: *Rosa*"
             data["nombre"] = nice_name(clean)
+            return "doc_tipo", None
+
+        if state == "doc_tipo":
+            match = next((title for bid, title in DOC_TYPES if reply == bid or norm(text) == norm(title)), None)
+            if not match:
+                tn = norm(text)
+                if "dni" in tn:
+                    match = "DNI"
+                elif "carne" in tn or "extranjer" in tn or tn == "ce":
+                    match = "Carné de extranjería"
+                elif "cpp" in tn or "ptp" in tn or "permiso" in tn:
+                    match = "CPP o PTP"
+            if not match:
+                return None, "Elige con los botones: *DNI*, *Carné de extranjería* o *CPP o PTP*."
+            data["doc_tipo"] = match
             return "dni", None
 
         if state == "dni":
-            digits = re.sub(r"\D", "", text)
-            if len(digits) != 8:
-                return None, "El DNI debe tener 8 dígitos. Escríbelo solo con números."
-            data["dni"] = digits
+            doc = data.get("doc_tipo", "DNI")
+            number = re.sub(r"[^A-Za-z0-9]", "", text).upper()
+            if not re.fullmatch(DOC_RULES[doc][0], number):
+                if doc == "DNI":
+                    return None, "El DNI debe tener 8 dígitos. Escríbelo solo con números."
+                return None, f"Revisa el número de tu {doc} y escríbelo sin espacios ni guiones."
+            data["dni"] = number
             return "dni_foto", None
 
         if state == "dni_foto":
             if msg.get("type") != "image" or not msg.get("media_id"):
-                return None, "Necesitamos una *foto* de tu DNI. Usa el clip o la cámara de WhatsApp para enviarla."
+                return None, (f"Necesitamos una *foto* de tu {data.get('doc_tipo', 'DNI')}. "
+                              "Usa el clip o la cámara de WhatsApp para enviarla.")
             content, _ = await self.wa.download_media(msg["media_id"])
             fname = f"{data['origen']}_{int(time.time())}.jpg"
             (self.privado_dir / fname).write_bytes(content)
@@ -390,7 +434,7 @@ class Bot:
         }
         private = {
             "ID": str(reg_id), "Fecha": time.strftime("%Y-%m-%d %H:%M"), "Nombre": data["nombre"],
-            "Apellido": "", "DNI": data["dni"], "WhatsApp origen": sender,
+            "Apellido": "", "DNI": f"{data.get('doc_tipo', 'DNI')} {data['dni']}", "WhatsApp origen": sender,
             "WhatsApp contacto": data["contacto"], "Foto DNI (archivo en servidor)": data.get("dni_foto", ""),
             "Estado": "Pendiente",
         }
@@ -404,10 +448,10 @@ class Bot:
             "cuando esté publicado en servi.pe (normalmente en menos de 24 horas)."))
         await self.alert_admin(
             f"Nuevo perfil #{reg_id}\n\n{self.summary(data, header='*Datos:*')}\n\n"
-            "Revisa el DNI y para publicarlo escribe el nombre tal como aparece en él:\n"
+            "Revisa el documento y para publicarlo escribe el nombre tal como aparece en él:\n"
             f"*aprobar {reg_id} Nombres Apellidos*\n"
             f"Para hablar con la persona: *responder {reg_id}*{sheet_note}")
-        await self.send_private_photo(data.get("dni_foto"), self.privado_dir, f"DNI del perfil #{reg_id}")
+        await self.send_private_photo(data.get("dni_foto"), self.privado_dir, f"Documento del perfil #{reg_id}")
         await self.send_private_photo(data.get("foto_file"), self.fotos_dir, f"Foto del perfil #{reg_id}")
 
     async def send_private_photo(self, fname, folder: Path, caption: str):
@@ -420,13 +464,14 @@ class Bot:
             pass
 
     # ------------------------------------------------------------------ handoff
-    async def start_handoff(self, sender: str, state: str, data: dict, last_text: str):
+    async def start_handoff(self, sender: str, state: str, data: dict, last_text: str,
+                            motivo: str = "pide hablar con una persona"):
         data["_volver_a"] = state
         self.store.save_session(sender, "humano", data, 0)
         await self.text(sender, "Listo, le aviso a nuestro equipo. Te escribirán por aquí en breve.")
         quien = data.get("nombre") or data.get("perfil_wa") or "Alguien"
         await self.alert_admin(
-            f"{quien} ({local_number(sender)}) pide hablar con una persona.\n"
+            f"{quien} ({local_number(sender)}) {motivo}.\n"
             f"Paso: {STEP_NAMES.get(state, state)}\nÚltimo mensaje: \"{last_text}\"\n\n"
             f"Para responderle escribe: *responder {local_number(sender).replace(' ', '')}*")
 
@@ -477,7 +522,7 @@ class Bot:
                 nombre, apellido = split_full_name(full) if full else ("", "")
             if not nombre or not apellido or not NAME_RE.fullmatch(nombre + " " + apellido):
                 await self.text(admin, (
-                    "Escribe también el nombre tal como aparece en el DNI. Por ejemplo:\n"
+                    "Escribe también el nombre tal como aparece en su documento. Por ejemplo:\n"
                     f"*aprobar {reg['id']} Rosa Huamán Quispe*"))
                 return
             reg["data"]["nombre_dni"], reg["data"]["apellido_dni"] = nombre, apellido
@@ -525,7 +570,7 @@ class Bot:
             else:
                 lines = [f"#{r['id']} {r['data'].get('nombre', '')}: "
                          f"{', '.join(r['data'].get('categorias', []))}" for r in pend]
-                await self.text(admin, "Pendientes:\n" + "\n".join(lines) + "\n\nPara publicar: *aprobar N Nombres Apellidos* (como en el DNI).")
+                await self.text(admin, "Pendientes:\n" + "\n".join(lines) + "\n\nPara publicar: *aprobar N Nombres Apellidos* (como en su documento).")
             return
 
         if cmd == "responder" and len(words) > 1:

@@ -78,7 +78,7 @@ def run(bot, *msgs):
 
 
 def signup(bot, frm=W, contacto_otro=None):
-    run(bot, m(frm, "hola"), m(frm, "maría"), m(frm, "12345678"),
+    run(bot, m(frm, "hola"), m(frm, "maría"), m(frm, reply="doc_dni"), m(frm, "12345678"),
         m(frm, image=True), m(frm, "1, 2"), m(frm, reply="dias_ambos"), m(frm, reply="turno_flexible"),
         m(frm, reply="precio_hora"), m(frm, "S/ 25"))
     if contacto_otro:
@@ -101,9 +101,9 @@ def test_full_signup_writes_row_in_site_format(env):
     assert row["Activo"] == "No" and row["Tier"] == "Basico"
     assert row["Foto URL"].startswith("https://bot.servi.pe/fotos/")
     assert "DNI" not in row  # DNI never goes to the public sheet
-    assert sh.private[0]["DNI"] == "12345678"
+    assert sh.private[0]["DNI"] == "DNI 12345678"
     assert any("Nuevo perfil #1" in t for t in wa.texts(ADMIN))
-    assert any(m_.get("caption") == "DNI del perfil #1" for t, m_ in wa.sent if t == ADMIN)
+    assert any(m_.get("caption") == "Documento del perfil #1" for t, m_ in wa.sent if t == ADMIN)
 
 
 def test_site_filters_match_saved_values(env):
@@ -123,7 +123,7 @@ def test_other_contact_number(env):
 
 def test_validation_and_stuck_alert(env):
     bot, wa, sh = env
-    run(bot, m(W, "hola"), m(W, "maría"))
+    run(bot, m(W, "hola"), m(W, "maría"), m(W, reply="doc_dni"))
     assert bot.store.get_session(W)["state"] == "dni"
     run(bot, m(W, "123"), m(W, "abc"), m(W, "99"))
     texts = wa.texts(W)
@@ -143,8 +143,8 @@ def test_handoff_relay_and_back(env):
     run(bot, m(W, "no encuentro mi DNI jaja"))
     assert any("[María] no encuentro mi DNI jaja" in t for t in wa.texts(ADMIN))
     run(bot, m(ADMIN, "fin"))
-    assert "*DNI*" in wa.texts(W)[-1]
-    run(bot, m(W, "12345678"))
+    assert "*documento de identidad*" in wa.texts(W)[-1]
+    run(bot, m(W, reply="doc_dni"), m(W, "12345678"))
     assert bot.store.get_session(W)["state"] == "dni_foto"
 
 
@@ -301,7 +301,7 @@ def test_admin_recognized_by_username_id(env):
 
 def test_username_worker_is_asked_for_contact_number(env):
     bot, wa, sh = env
-    run(bot, m(U, "hola"), m(U, "rosa"), m(U, "12345678"), m(U, image=True), m(U, "1"),
+    run(bot, m(U, "hola"), m(U, "rosa"), m(U, reply="doc_dni"), m(U, "12345678"), m(U, image=True), m(U, "1"),
         m(U, reply="dias_semana"), m(U, reply="turno_manana"), m(U, reply="precio_hora"), m(U, "20"))
     assert "¿A qué número de WhatsApp te pueden escribir" in wa.texts(U)[-1]
     run(bot, m(U, "987 111 222"), m(U, reply="foto_omitir"), m(U, reply="confirmar_si"))
@@ -315,3 +315,25 @@ def test_relay_to_username_worker(env):
     assert any(f"responder {U}" in t for t in wa.texts(ADMIN))
     run(bot, m(ADMIN, f"responder {U.lower()}"), m(ADMIN, "Hola, te ayudo"))
     assert "Hola, te ayudo" in wa.texts(U)
+
+
+def test_foreign_documents(env):
+    bot, wa, sh = env
+    run(bot, m(W, "hola"), m(W, "yorgelis"), m(W, reply="doc_ce"))
+    assert "Carné de extranjería" in wa.texts(W)[-1]
+    run(bot, m(W, "123"))
+    assert bot.store.get_session(W)["state"] == "dni"
+    run(bot, m(W, "001-234-567"))
+    s = bot.store.get_session(W)
+    assert s["state"] == "dni_foto" and s["data"]["dni"] == "001234567" and s["data"]["doc_tipo"] == "Carné de extranjería"
+    W2 = "51911111111"
+    run(bot, m(W2, "hola"), m(W2, "josé"), m(W2, "tengo cpp"), m(W2, "A1234567"))
+    assert bot.store.get_session(W2)["data"]["doc_tipo"] == "CPP o PTP"
+    assert bot.store.get_session(W2)["state"] == "dni_foto"
+
+
+def test_destacado_request_goes_to_a_person(env):
+    bot, wa, sh = env
+    run(bot, m(W, "Hola, quiero mejorar mi perfil a Destacado en Servi.pe"))
+    assert any("Destacado" in t for t in wa.texts(ADMIN))
+    assert bot.store.get_session(W)["state"] == "humano"
