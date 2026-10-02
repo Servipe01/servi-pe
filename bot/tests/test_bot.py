@@ -258,3 +258,12 @@ def test_name_splitting_rules():
     assert s("ana lucía pérez rojas") == ("Ana Lucía", "Pérez Rojas")
     assert s("María de los Ángeles Pérez Rojas") == ("María de los Ángeles", "Pérez Rojas")
     assert s("juan carlos de la cruz pérez") == ("Juan Carlos", "de la Cruz Pérez")
+
+
+def test_app_starts_without_any_configuration(tmp_path, monkeypatch):
+    for k in ["SHEETS_URL", "WA_TOKEN", "WA_APP_SECRET"]:
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("GOOGLE_CREDS", str(tmp_path / "missing.json"))
+    client = TestClient(create_app())
+    assert client.get("/health").json() == {"ok": True}
