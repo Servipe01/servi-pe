@@ -6,13 +6,39 @@ import logging
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
 from .config import Settings
 from .flow import Bot
 from .store import Store
 
 log = logging.getLogger("servibot")
+
+PRIVACY_HTML = """<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Servi.pe: Política de privacidad</title>
+<style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 16px;line-height:1.6;color:#1a1a1a}
+h1{font-size:1.6em}h2{font-size:1.15em;margin-top:1.6em}</style></head><body>
+<h1>Política de privacidad de Servi.pe</h1>
+<p>Servi.pe es una plataforma que conecta a personas en Lima, Perú, con trabajadores de servicios
+(limpieza, cuidado de niños, gasfitería, electricidad, pintura, carpintería y jardinería).
+Esta política explica qué datos recogemos a través de nuestro asistente de WhatsApp y cómo los usamos.</p>
+<h2>Datos que recogemos</h2>
+<p>Cuando un trabajador crea su perfil por WhatsApp nos comparte: su nombre, número y foto de DNI,
+servicios que ofrece, días y horario disponibles, precio referencial, número de WhatsApp de contacto
+y, si lo desea, una foto de perfil.</p>
+<h2>Para qué los usamos</h2>
+<p>Usamos el DNI y su foto solo para verificar la identidad del trabajador. No se publican.
+Publicamos en servi.pe el nombre, servicios, disponibilidad, precio, foto de perfil y el WhatsApp de contacto,
+para que los clientes puedan contactar al trabajador directamente.</p>
+<h2>Con quién los compartimos</h2>
+<p>No vendemos ni compartimos datos personales con terceros. Los mensajes se procesan mediante
+WhatsApp Business Platform de Meta, y los perfiles publicados se guardan en servicios de Google.</p>
+<h2>Tus derechos</h2>
+<p>Puedes pedir ver, corregir o eliminar tus datos en cualquier momento escribiendo a
+<a href="mailto:ayuda@servi.pe">ayuda@servi.pe</a> o por WhatsApp a nuestro asistente escribiendo
+la palabra <b>persona</b>. Atendemos tu pedido según la Ley 29733 de Protección de Datos Personales del Perú.</p>
+<p>Última actualización: octubre de 2026.</p>
+</body></html>"""
 
 
 class UnconfiguredSheets:
@@ -80,6 +106,10 @@ def create_app(settings: Settings | None = None, bot: Bot | None = None) -> Fast
                     await bot.handle(m)
                 except Exception:
                     log.exception("error handling message %s", m.get("id"))
+
+    @app.get("/privacidad", response_class=HTMLResponse)
+    async def privacidad():
+        return PRIVACY_HTML
 
     @app.get("/health")
     async def health():
