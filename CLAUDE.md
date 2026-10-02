@@ -52,20 +52,24 @@ Decisions (Victor, 2026-10-01): bot only on 907; human handoff by alerts to Vict
 Flow (Spanish): nombre (first name only, for the chat), DNI (8 digits), foto DNI (private), servicios (numbers 1 to 7), días (Semana / Finde / Semana y finde), horario (Mañana / Tarde / Noche / Horario flexible), cobro (Por hora / Por servicio), precio, WhatsApp de contacto (this number or another), foto de perfil (optional), confirmar.
 Values match the site filters (`includes('semana')`, `includes('finde')`, turno `horarioflexible`).
 
-On confirm: row appended to the public sheet with `Activo` = No (hidden) and empty `Apellido`, private row (DNI etc.) to a separate private sheet, alert plus DNI photo to Victor.
+On confirm: row appended to the public sheet with `Activo` = No (hidden) and empty `Apellido`, private row (DNI etc.) to the private sheet if configured, alert plus DNI photo to Victor.
 Worker can type *persona* at any time; after 3 failed answers Victor gets an "atascado" alert.
 
 Official name: Victor copies it from the DNI photo when approving (decision 2026-10-01): `aprobar N Nombres Apellidos` (last two words = apellidos; use `/` to split explicitly: `aprobar N Ana Lucía / Pérez Rojas`). This sets Nombre, Apellido, Activo, Verificado. Re-running it fixes the name without messaging the worker again.
 Victor's commands (from 981 to the bot): `pendientes`, `aprobar N Nombres Apellidos`, `rechazar N motivo`, `responder 9XXXXXXXX` or `responder N` (relay: his texts go out from 907), `fin`.
 24 hour rule: if the recipient hasn't written in 24h, messages are queued and the approved template `aviso_equipo` (to Victor) or `seguimiento_perfil` (to workers) is sent; queued messages go out when they reply.
 
-Code layout: `bot/servibot/` (flow.py conversation, app.py webhook, wa.py WhatsApp client, sheets.py, store.py SQLite), `bot/tests/` (pytest, 13 tests), `bot/apps-script/Code.gs` (Google Sheets bridge pasted into the public sheet), `bot/deploy/` (setup.sh, systemd unit, Caddyfile, env template).
+Code layout: `bot/servibot/` (flow.py conversation, app.py webhook, wa.py WhatsApp client, sheets.py, store.py SQLite), `bot/tests/` (pytest, 15 tests), `bot/apps-script/Code.gs` (Google Sheets bridge pasted into the public sheet), `bot/deploy/` (setup.sh, systemd unit, Caddyfile, env template).
 Secrets live only on the server in `/etc/servibot/servibot.env`, never in the repo. Data and photos in `/var/lib/servibot` (DNI photos in `privado/`, never served).
 Install or update on the server (as root): `curl -fsSL https://raw.githubusercontent.com/Servipe01/servi-pe/main/bot/deploy/setup.sh | bash`. Logs: `journalctl -u servibot -f`.
 
+## Google Sheet connection (done 2026-10-01)
+
+The public sheet is titled "servi.pe"; its Apps Script project is called "Servi Dashboard" and contains `bot/apps-script/Code.gs` (pasted by Victor, deployed as Web app, Execute as Me, Anyone). Script property `SECRET` (capital letters) holds the server's `SHEETS_SECRET`. `PRIVATE_SHEET_ID` not set: the private sheet is skipped for now; DNI data lives on the server and goes to Victor by WhatsApp. The web app URL is saved on the server as `SHEETS_URL`. Test from the server returned ok. If the script code changes: paste it, then Deploy, Manage deployments, edit, New version (the URL stays the same).
+
 ## Plan
 
-1. Go live: run setup.sh (uses 142-93-192-86.sslip.io); servi.pe DNS (GoDaddy, login unclear) can wait; private sheet plus Apps Script; Meta permanent token, app secret, webhook (`https://bot.servi.pe/webhook`), templates; publish the app.
+1. Go live (remaining): Meta permanent token and app secret into the server settings, webhook `https://142-93-192-86.sslip.io/webhook` with the server's `WA_VERIFY_TOKEN`, register the 907 number (6 digit PIN), templates `aviso_equipo` and `seguimiento_perfil`, publish the app, test from a phone. Optional later: private sheet (`PRIVATE_SHEET_ID`), bot.servi.pe once GoDaddy access is recovered.
 2. Change the site's "Crea tu perfil" links from 981 to the bot number 907 once the bot is live.
 3. Later, if volume grows: move from the Google Sheet to a real database.
 
@@ -77,10 +81,10 @@ Install or update on the server (as root): `curl -fsSL https://raw.githubusercon
 
 ## Status
 
-Bot code written and tested (not yet deployed). Meta app and number ready; number registration (6 digit PIN, Victor) to confirm. Server still empty.
+Bot running on the server at https://142-93-192-86.sslip.io and connected to the Google Sheet. Meta (token, webhook, PIN registration, templates) still to connect.
 
 ## Log
 
 * 2026-05-26: Site uploaded to GitHub (`servi.pe.html` renamed to `index.html`).
 * 2026-07-16: Several updates to `index.html`.
-* 2026-10-01: Context rebuilt after it was lost between sessions. Reviewed DigitalOcean, GitHub and DNS. Wrote this handbook. Chose +51 907 434 222 as the bot number. Created Servi.pe portfolio, moved Twisso page in, requested rename, created Meta app, verified the bot number, wrote the bot.
+* 2026-10-01: Context rebuilt after it was lost between sessions. Reviewed DigitalOcean, GitHub and DNS. Wrote this handbook. Chose +51 907 434 222 as the bot number. Created Servi.pe portfolio, moved Twisso page in, requested rename, created Meta app, verified the bot number, wrote the bot, uploaded it to GitHub, installed it on the server (sslip.io address, GoDaddy login not available), connected the Google Sheet. Note: git push from Claude's sandbox is blocked; uploads go through the GitHub website in Victor's Chrome. Victor is a beginner: give one small step at a time.
