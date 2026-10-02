@@ -267,3 +267,9 @@ def test_app_starts_without_any_configuration(tmp_path, monkeypatch):
     monkeypatch.setenv("GOOGLE_CREDS", str(tmp_path / "missing.json"))
     client = TestClient(create_app())
     assert client.get("/health").json() == {"ok": True}
+
+
+def test_privacy_page(env):
+    bot, wa, sh = env
+    r = TestClient(create_app(bot.s, bot)).get("/privacidad")
+    assert r.status_code == 200 and "Política de privacidad" in r.text
