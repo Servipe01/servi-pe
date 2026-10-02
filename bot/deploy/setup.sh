@@ -54,6 +54,8 @@ echo "==> Web server (HTTPS certificate is automatic)"
 sed "s|__BOT_HOST__|$BOT_HOST|" "$APP/bot/deploy/Caddyfile" > /etc/caddy/Caddyfile
 systemctl reload caddy || systemctl restart caddy
 
+install -m 700 "$APP/bot/deploy/servibot-config" /usr/local/bin/servibot-config
+
 echo "==> Bot service"
 cp "$APP/bot/deploy/servibot.service" /etc/systemd/system/servibot.service
 systemctl daemon-reload
