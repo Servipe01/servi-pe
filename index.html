@@ -343,7 +343,8 @@ nav {
 
 /* ── REGISTER CTA ── */
 .register-section { background: var(--ink); padding: 80px 40px; text-align: center; position: relative; overflow: hidden; }
-.register-section::before { content:''; position:absolute; width:600px; height:600px; border-radius:50%; background:rgba(79,142,247,0.05); top:-200px; left:50%; transform:translateX(-50%); }
+.register-section::before { content:''; position:absolute; width:600px; height:600px; border-radius:50%; background:rgba(79,142,247,0.05); top:-200px; left:50%; transform:translateX(-50%); pointer-events:none; }
+.register-section > * { position: relative; z-index: 1; }
 .register-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 14px; display: block; }
 .register-title { font-size: clamp(26px,4vw,40px); font-weight: 800; color: #fff; line-height: 1.1; margin-bottom: 14px; letter-spacing: -0.5px; }
 .register-sub { font-size: 15px; color: rgba(255,255,255,0.5); margin-bottom: 40px; max-width: 420px; margin-left: auto; margin-right: auto; }
