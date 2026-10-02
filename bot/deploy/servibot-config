@@ -1,40 +1,67 @@
 #!/usr/bin/env bash
 # Connects the bot to Meta in one go. Run as root:  servibot-config
 # Asks for the Meta access token, the app secret and a 6 digit PIN (input is hidden),
-# saves them in the settings file, registers the number, subscribes the webhook and restarts the bot.
+# checks each one with Meta right away, saves them, registers the number,
+# subscribes the webhook and restarts the bot. Values already saved and valid are not asked again.
 set -uo pipefail
 ENV_FILE=/etc/servibot/servibot.env
 set -a; . "$ENV_FILE"; set +a
-G="https://graph.facebook.com/${WA_GRAPH_VERSION:-v23.0}"
+V=${WA_GRAPH_VERSION:-v23.0}
+G="https://graph.facebook.com/$V"
 WA_APP_ID=${WA_APP_ID:-2199185970645186}
 WA_WABA_ID=${WA_WABA_ID:-4213388552284876}
+C="curl -sS --http1.1 --max-time 30"
 
-ask() {  # ask "label" VAR  (hidden input, keeps current value on empty answer)
-  local label=$1 var=$2 val
-  read -r -s -p "$label: " val; echo
-  if [ -n "$val" ]; then
-    val=$(echo "$val" | tr -d '[:space:]')
-    sed -i "s|^$var=.*|$var=$val|" "$ENV_FILE"
-    printf -v "$var" '%s' "$val"
-  fi
+clean() {  # drop terminal paste markers (ESC[200~ ESC[201~), spaces and anything not a letter or digit
+  python3 -c 'import re,sys; s=sys.stdin.read(); s=re.sub(r"\x1b\[[0-9;]*~","",s); print(re.sub(r"[^A-Za-z0-9]","",s), end="")'
 }
+save() { sed -i "s|^$1=.*|$1=$2|" "$ENV_FILE"; }
 
-echo "Pega cada valor y presiona Enter (no se verá en pantalla; es normal)."
-ask "1) Token de acceso de Meta" WA_TOKEN
-ask "2) Clave secreta de la app (App secret)" WA_APP_SECRET
-read -r -s -p "3) Elige un PIN de 6 dígitos para el número del bot (guárdalo): " PIN; echo
+token_ok()  { $C "$G/me?fields=id" -H "Authorization: Bearer $1" | grep -q '"id"'; }
+secret_ok() { $C "$G/$WA_APP_ID?fields=id&access_token=$WA_APP_ID|$1" | grep -q '"id"'; }
 
-ok() { if echo "$1" | grep -q '"error"'; then echo "   ERROR: $(echo "$1" | sed 's/.*"message":"\([^"]*\)".*/\1/')"; return 1; else echo "   OK"; fi; }
+if [ -n "${WA_TOKEN:-}" ] && token_ok "$WA_TOKEN"; then
+  echo "1) Token de Meta: ya guardado y correcto ✓"
+else
+  for i in 1 2 3; do
+    read -r -s -p "1) Pega el token de acceso de Meta y presiona Enter: " raw; echo
+    t=$(printf '%s' "$raw" | clean)
+    if token_ok "$t"; then save WA_TOKEN "$t"; WA_TOKEN=$t; echo "   ✓ Token correcto"; break; fi
+    echo "   ✗ Meta no aceptó ese token. Cópialo de nuevo y pégalo UNA sola vez."
+    [ $i = 3 ] && { echo "Detenido. Vuelve a intentarlo con: servibot-config"; exit 1; }
+  done
+fi
 
-echo "==> Registrando el número $WA_PHONE_ID"
-ok "$(curl -sS -X POST "$G/$WA_PHONE_ID/register" -H "Authorization: Bearer $WA_TOKEN" \
-  -d messaging_product=whatsapp -d pin="$PIN")"
+if [ -n "${WA_APP_SECRET:-}" ] && secret_ok "$WA_APP_SECRET"; then
+  echo "2) Clave secreta de la app: ya guardada y correcta ✓"
+else
+  for i in 1 2 3; do
+    read -r -s -p "2) Pega la clave secreta de la app (App secret) y presiona Enter: " raw; echo
+    s=$(printf '%s' "$raw" | clean)
+    if secret_ok "$s"; then save WA_APP_SECRET "$s"; WA_APP_SECRET=$s; echo "   ✓ Clave correcta"; break; fi
+    echo "   ✗ Meta no aceptó esa clave. Cópiala de nuevo y pégala UNA sola vez."
+    [ $i = 3 ] && { echo "Detenido. Vuelve a intentarlo con: servibot-config"; exit 1; }
+  done
+fi
+
+ok() { if echo "$1" | grep -q '"success":true'; then echo "   ✓ Listo"; return 0; fi
+       echo "   ✗ $(echo "$1" | grep -o '"message":"[^"]*"' | head -1)"; return 1; }
+
+for i in 1 2 3; do
+  read -r -s -p "3) Escribe un PIN de 6 números para el número del bot (anótalo) y presiona Enter: " raw; echo
+  PIN=$(printf '%s' "$raw" | clean)
+  if ! [[ $PIN =~ ^[0-9]{6}$ ]]; then echo "   ✗ Deben ser exactamente 6 números."; continue; fi
+  echo "==> Registrando el número del bot"
+  ok "$($C -X POST "$G/$WA_PHONE_ID/register" -H "Authorization: Bearer $WA_TOKEN" \
+        -d messaging_product=whatsapp -d pin="$PIN")" && break
+  [ $i = 3 ] && echo "   (Seguimos con lo demás; el registro se puede repetir luego con: servibot-config)"
+done
 
 echo "==> Conectando la cuenta de WhatsApp a la app"
-ok "$(curl -sS -X POST "$G/$WA_WABA_ID/subscribed_apps" -H "Authorization: Bearer $WA_TOKEN")"
+ok "$($C -X POST "$G/$WA_WABA_ID/subscribed_apps" -H "Authorization: Bearer $WA_TOKEN")"
 
 echo "==> Configurando el webhook"
-ok "$(curl -sS -X POST "$G/$WA_APP_ID/subscriptions" \
+ok "$($C -X POST "$G/$WA_APP_ID/subscriptions" \
   -d object=whatsapp_business_account \
   -d callback_url="$PUBLIC_BASE_URL/webhook" \
   -d verify_token="$WA_VERIFY_TOKEN" \
